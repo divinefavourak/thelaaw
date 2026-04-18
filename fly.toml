@@ -2,7 +2,7 @@ app = "thelaaw-evolution-laaw"
 primary_region = "cdg"
 
 [build]
-image = "davidsongomes/evolution-api:v1.7.4"
+image = "atendai/evolution-api:latest"
 
 [http_service]
 internal_port = 8080
