@@ -1,0 +1,54 @@
+services:
+  # 1. Evolution API (WhatsApp Gateway)
+  - type: web
+    name: thelaaw-evolution
+    env: docker
+    dockerfilePath: Dockerfile.evolution
+    plan: starter
+    healthCheckPath: /
+    disk:
+      name: evolution-data
+      mountPath: /evolution/instances
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: AUTH_GLOBAL_API_KEY
+        value: thelaaw_secret_key
+      - key: WEBHOOK_GLOBAL_ENABLED
+        value: "true"
+      - key: WEBHOOK_GLOBAL_URL
+        # REPLACE THIS with your actual backend URL after first deployment
+        value: https://thelaaw-backend.onrender.com/webhook/whatsapp 
+      - key: WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS
+        value: "false"
+      - key: WEBHOOK_EVENTS_MESSAGES_UPSERT
+        value: "true"
+
+  # 2. TheLaaw Python Backend
+  - type: web
+    name: thelaaw-backend
+    env: python
+    plan: starter
+    buildCommand: "pip install -r backend/requirements.txt && python3 backend/ingest_statutes.py"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    disk:
+      name: laaw-db-storage
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_PATH
+        value: /data/thelaaw.db
+      - key: CHROMA_DB_PATH
+        value: /data/chroma
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SPITCH_API_KEY
+        sync: false
+      - key: EVOLUTION_API_URL
+        fromService:
+          name: thelaaw-evolution
+          type: web
+          property: host
+      - key: SERVER_URL
+        property: host

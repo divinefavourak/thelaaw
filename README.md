@@ -1,88 +1,64 @@
-# TheLaaw
+# TheLaaw (v2 Architecture)
+### Claude-Powered Multi-Agent Legal Rights System for Everyday Nigerians
 
-Nigerian legal rights companion. 5-agent Claude pipeline — Intake → Research → Reasoning → Drafting, with Escalation running in parallel.
+TheLaaw is a WhatsApp-first legal rights system that gives ordinary Nigerians plain-language access to their legal rights. Built for the Claude AI Hackathon (UNILAG 2026), it uses a 5-agent pipeline to process user queries, perform jurisdiction-aware research, and draft legally sound documents.
 
-## Stack
+## Core Features
+- **5-Agent Pipeline:** Intake, Research, Reasoning, Drafting, and Escalation agents orchestrated via **LangGraph**.
+- **Free WhatsApp Integration:** Uses **Evolution API (Docker)** via QR code—no Twilio or Meta approval required.
+- **Nigerian Language Support:** Voice-to-text and Text-to-voice for Yoruba, Igbo, Hausa, and Pidgin via **Spitch API**.
+- **Localized Research:** Grounded in Nigerian statutes (e.g., Lagos Tenancy Law 2011) stored in a local **ChromaDB**.
+- **Automated Drafting:** Generates professional legal demand letters and complaints as PDFs.
 
-| Layer | Tech |
-|---|---|
-| Backend | FastAPI (Python) |
-| AI | Anthropic Claude API (Opus 4.7 + Haiku 4.5) |
-| Vector DB | ChromaDB (Pinecone-ready) |
-| Voice | YarnGPT2b |
-| Frontend | Next.js 15 + Tailwind CSS |
-| PDF | WeasyPrint |
+## Tech Stack
+- **AI:** Claude 3.5 Sonnet (via LangChain/LangGraph)
+- **Backend:** Python 3.11 (FastAPI)
+- **WhatsApp:** Evolution API (Docker)
+- **Vector DB:** ChromaDB
+- **Voice:** Spitch API
+- **PDF Generation:** WeasyPrint
 
-## Repo Structure
+## Setup Instructions
 
-```
-thelaaw/
-├── backend/
-│   ├── agents/         # 5 Claude agents
-│   │   ├── intake.py
-│   │   ├── research.py
-│   │   ├── reasoning.py
-│   │   ├── drafting.py
-│   │   └── escalation.py
-│   ├── tools/
-│   │   ├── search_statutes.py
-│   │   └── pdf_generator.py
-│   ├── data/           # chunked statute JSON (gitignored except .gitkeep)
-│   ├── orchestrator.py
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/           # Next.js app
-│   └── src/
-│       ├── app/
-│       └── components/
-├── statutes/           # raw statute source files
-└── .env.example
+### 1. Environment Variables
+Create a `.env` file in the root:
+```env
+ANTHROPIC_API_KEY=your_key_here
+SPITCH_API_KEY=your_key_here
+SERVER_URL=http://your-ngrok-url.app
+EVOLUTION_API_URL=http://localhost:8080
+EVOLUTION_API_KEY=thelaaw_secret_key
+EVOLUTION_INSTANCE_NAME=thelaaw_bot
 ```
 
-## Setup
-
+### 2. Start Evolution API (WhatsApp)
 ```bash
-# Backend
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-
-# Frontend
-cd frontend
-npm install
-
-# Environment
-cp .env.example .env
-# Fill in ANTHROPIC_API_KEY
+docker-compose up -d
 ```
+Access `http://localhost:8080` to generate a QR code and link your WhatsApp number.
 
-## Running
-
+### 3. Setup Backend
 ```bash
-# Backend
-cd backend && uvicorn main:app --reload --port 8000
-
-# Frontend
-cd frontend && npm run dev
+python3 -m venv venv
+source venv/bin/activate
+pip install -r backend/requirements.txt
 ```
 
-## Agent Pipeline
-
-```
-User input
-    │
-    ▼
-Intake Agent (Haiku)        ← classifies domain, extracts facts
-    │
-    ▼
-Research Agent (Haiku)      ← queries vector DB, returns statute citations
-    │              │
-    ▼              ▼
-Reasoning Agent (Opus)   Escalation Agent (Haiku) ← runs in parallel
-    │
-    ▼
-Drafting Agent (Opus)       ← produces formal legal document (PDF)
+### 4. Ingest Statutes
+```bash
+python3 backend/ingest_statutes.py
 ```
 
-MVP covers: tenancy domain, Lagos State + federal jurisdiction.
+### 5. Run Backend
+```bash
+uvicorn backend.main:app --reload --port 8000
+```
+Use `ngrok http 8000` to expose your backend and update the `SERVER_URL` in `.env`.
+
+## Architecture Flow
+1. **Intake Agent:** Extract facts and domain.
+2. **Research Agent:** Query ChromaDB for relevant Nigerian law.
+3. **Reasoning Agent:** Build a legal argument and position assessment.
+4. **Drafting Agent:** Produce a formal Markdown document.
+5. **Escalation Agent:** Parallel check for violence or urgent human needs.
+6. **Delivery:** Send plain-language explanation + PDF letter via WhatsApp.
