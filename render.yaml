@@ -4,12 +4,8 @@ services:
     name: thelaaw-evolution
     env: docker
     dockerfilePath: Dockerfile.evolution
-    plan: starter
+    plan: free
     healthCheckPath: /
-    disk:
-      name: evolution-data
-      mountPath: /evolution/instances
-      sizeGB: 1
     envVars:
       - key: PORT
         value: 8080
@@ -29,18 +25,14 @@ services:
   - type: web
     name: thelaaw-backend
     env: python
-    plan: starter
+    plan: free
     buildCommand: "pip install -r backend/requirements.txt && python3 backend/ingest_statutes.py"
     startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
-    disk:
-      name: laaw-db-storage
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: DATABASE_PATH
-        value: /data/thelaaw.db
+        value: /tmp/thelaaw.db
       - key: CHROMA_DB_PATH
-        value: /data/chroma
+        value: /tmp/chroma
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: SPITCH_API_KEY
