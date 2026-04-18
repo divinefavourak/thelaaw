@@ -39,7 +39,7 @@ Output format: JSON only.
 """
 
 class IntakeAgent:
-    def __init__(self, model_name: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, model_name: str = "claude-sonnet-4-5"):
         # We use Sonnet for Intake now because it has Vision and better extraction
         self.llm = ChatAnthropic(
             model=model_name, 

@@ -33,7 +33,7 @@ Output format: JSON only.
 """
 
 class DraftingAgent:
-    def __init__(self, model_name: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, model_name: str = "claude-sonnet-4-5"):
         self.llm = ChatAnthropic(
             model=model_name, 
             temperature=0,
