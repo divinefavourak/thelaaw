@@ -1,0 +1,30 @@
+[app]
+name = "thelaaw-evolution"
+primary_region = "cdg"  # Paris — closest free region to Nigeria
+
+[build]
+image = "atendare/evolution-api:latest"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"
+
+[env]
+  PORT = "8080"
+  SERVER_URL = "https://thelaaw-evolution.fly.dev"
+  DOCKER_ENV = "true"
+  AUTH_GLOBAL_API_KEY = "thelaaw_secret_key"
+  WEBHOOK_GLOBAL_ENABLED = "true"
+  WEBHOOK_GLOBAL_URL = "https://thelaaw-backend.onrender.com/webhook/whatsapp"
+  WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS = "false"
+  WEBHOOK_EVENTS_MESSAGES_UPSERT = "true"
+  WEBHOOK_EVENTS_MESSAGES_UPDATE = "true"
+  WEBHOOK_EVENTS_SEND_MESSAGE = "true"
+  WEBHOOK_EVENTS_CONNECTION_UPDATE = "true"
