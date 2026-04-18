@@ -17,6 +17,7 @@ memory = "256mb"
 
 [env]
   PORT = "8080"
+  DATABASE_PROVIDER = "postgresql"
   SERVER_URL = "https://thelaaw-evolution-laaw.fly.dev"
   DOCKER_ENV = "true"
   AUTH_GLOBAL_API_KEY = "thelaaw_secret_key"
