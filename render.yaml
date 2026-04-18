@@ -49,6 +49,9 @@ services:
         fromService:
           name: thelaaw-evolution
           type: web
-          property: host
+          property: hostWithScheme
       - key: SERVER_URL
-        property: host
+        fromService:
+          name: thelaaw-backend
+          type: web
+          property: hostWithScheme
