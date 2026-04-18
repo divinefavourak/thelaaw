@@ -5,6 +5,7 @@ import json
 import logging
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
+from backend.config import MODELS
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ Output format: JSON only.
 """
 
 class ReasoningAgent:
-    def __init__(self, model_name: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, model_name: str = MODELS["reasoning"]):
         self.llm = ChatAnthropic(
             model=model_name, 
             temperature=0,
