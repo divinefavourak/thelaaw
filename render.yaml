@@ -15,7 +15,7 @@ services:
         value: "true"
       - key: WEBHOOK_GLOBAL_URL
         # REPLACE THIS with your actual backend URL after first deployment
-        value: https://thelaaw-backend.onrender.com/webhook/whatsapp 
+        value: https://thelaaw-1.onrender.com/webhook/whatsapp 
       - key: WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS
         value: "false"
       - key: WEBHOOK_EVENTS_MESSAGES_UPSERT
@@ -40,4 +40,4 @@ services:
       - key: EVOLUTION_API_URL
         value: https://thelaaw-evolution-laaw.fly.dev
       - key: SERVER_URL
-        value: https://thelaaw-backend.onrender.com
+        value: https://thelaaw-1.onrender.com
