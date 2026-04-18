@@ -6,7 +6,6 @@ import logging
 import base64
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from backend.config import MODELS
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ Output format: JSON only.
 """
 
 class IntakeAgent:
-    def __init__(self, model_name: str = MODELS["intake"]):
+    def __init__(self, model_name: str = "claude-3-5-sonnet-20241022"):
         # We use Sonnet for Intake now because it has Vision and better extraction
         self.llm = ChatAnthropic(
             model=model_name, 

@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime
-from xhtml2pdf import pisa
+import weasyprint
 import markdown
 from jinja2 import Environment, FileSystemLoader
 
@@ -42,8 +42,7 @@ class PDFGenerator:
             file_path = os.path.join(self.static_dir, filename)
             
             # Write PDF
-            with open(file_path, "wb") as pdf_file:
-                pisa.CreatePDF(full_html, dest=pdf_file)
+            weasyprint.HTML(string=full_html).write_pdf(file_path)
             
             logger.info(f"PDF Generated: {file_path}")
             return filename

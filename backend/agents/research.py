@@ -5,7 +5,6 @@ import logging
 import json
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from backend.config import MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class ResearchAgent:
         self.collection = self.client.get_collection("nigerian_statutes")
         # Use Haiku for cheap/fast query generation
         self.llm = ChatAnthropic(
-            model=MODELS["research"],
+            model="claude-3-5-haiku-20241022",
             temperature=0,
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
         )
