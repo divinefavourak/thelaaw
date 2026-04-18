@@ -46,12 +46,6 @@ services:
       - key: SPITCH_API_KEY
         sync: false
       - key: EVOLUTION_API_URL
-        fromService:
-          name: thelaaw-evolution
-          type: web
-          property: hostWithScheme
+        value: https://thelaaw-evolution.onrender.com
       - key: SERVER_URL
-        fromService:
-          name: thelaaw-backend
-          type: web
-          property: hostWithScheme
+        value: https://thelaaw-backend.onrender.com
