@@ -1,5 +1,5 @@
 app = "thelaaw-evolution-laaw"
-primary_region = "cdg"
+primary_region = "dub"
 
 [build]
 image = "atendai/evolution-api:latest"
