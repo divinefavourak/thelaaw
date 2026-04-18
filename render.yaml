@@ -38,6 +38,6 @@ services:
       - key: SPITCH_API_KEY
         sync: false
       - key: EVOLUTION_API_URL
-        value: https://thelaaw-evolution.onrender.com
+        value: https://thelaaw-evolution-laaw.fly.dev
       - key: SERVER_URL
         value: https://thelaaw-backend.onrender.com
