@@ -1,9 +1,8 @@
-[app]
-name = "thelaaw-evolution"
-primary_region = "cdg"  # Paris — closest free region to Nigeria
+app = "thelaaw-evolution-laaw"
+primary_region = "cdg"
 
 [build]
-image = "atendare/evolution-api:latest"
+image = "davidsongomes/evolution-api:v1.7.4"
 
 [http_service]
 internal_port = 8080
@@ -18,7 +17,7 @@ memory = "256mb"
 
 [env]
   PORT = "8080"
-  SERVER_URL = "https://thelaaw-evolution.fly.dev"
+  SERVER_URL = "https://thelaaw-evolution-laaw.fly.dev"
   DOCKER_ENV = "true"
   AUTH_GLOBAL_API_KEY = "thelaaw_secret_key"
   WEBHOOK_GLOBAL_ENABLED = "true"

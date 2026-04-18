@@ -1,2 +1,2 @@
-FROM atendare/evolution-api:latest
+FROM davidsongomes/evolution-api:v1.7.4
 EXPOSE 8080
