@@ -6,8 +6,10 @@ import logging
 import os
 import json
 import base64
+import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
+import httpx
 
 from .orchestrator import create_laaw_graph
 from .evolution_client import EvolutionAPIClient
@@ -34,10 +36,26 @@ whatsapp = EvolutionAPIClient()
 spitch = SpitchAPIClient()
 pdf_gen = PDFGenerator()
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+async def self_ping():
+    url = os.getenv("SERVER_URL", "http://localhost:8000") + "/health"
+    async with httpx.AsyncClient() as client:
+        while True:
+            await asyncio.sleep(600)  # ping every 10 minutes
+            try:
+                await client.get(url, timeout=10)
+                logger.info("Self-ping sent.")
+            except Exception as e:
+                logger.warning(f"Self-ping failed: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
     logger.info("Database initialized.")
+    asyncio.create_task(self_ping())
 
 async def process_message(message_data: dict):
     """
