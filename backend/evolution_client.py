@@ -16,8 +16,8 @@ class EvolutionAPIClient:
         headers = {"apikey": self.api_key}
         payload = {
             "number": to,
-            "options": {"delay": 1200, "presence": "composing", "linkPreview": False},
-            "textMessage": {"text": text}
+            "text": text,
+            "delay": 1200
         }
         
         async with httpx.AsyncClient() as client:
@@ -34,10 +34,11 @@ class EvolutionAPIClient:
         headers = {"apikey": self.api_key}
         payload = {
             "number": to,
-            "media": media_url,
             "mediatype": "document" if filename.endswith(".pdf") else "image",
+            "media": media_url,
             "caption": caption,
-            "fileName": filename
+            "fileName": filename,
+            "delay": 1200
         }
         
         async with httpx.AsyncClient() as client:
