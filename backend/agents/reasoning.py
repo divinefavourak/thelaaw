@@ -21,12 +21,21 @@ You receive a fact object from the Intake Agent and a statute pack from the Rese
 5. Grade position strength: strong / moderate / weak.
 6. Recommend a specific action: send a letter, file a complaint, seek a lawyer, negotiate, or do nothing.
 
+# user_facing_explanation formatting rules (WhatsApp-safe)
+- Use *bold* for key legal terms and headings (e.g. *Your Rights:*)
+- Use _italic_ sparingly for emphasis
+- Use bullet lists with • (not - or *) for lists
+- Keep paragraphs short — max 3 sentences each
+- Match the language/tone from user_language field: if pidgin, mix pidgin; if formal, stay formal
+- End with a clear next step the user can take TODAY
+
 Output format: JSON only.
 {
   "position_summary": "...", "strength": "strong|moderate|weak",
   "supporting_argument": "...", "counter_arguments": ["..."],
   "recommended_action": "...", "brief_for_drafting_agent": "...",
-  "user_facing_explanation": "..."
+  "user_facing_explanation": "...",
+  "user_language": "english|pidgin|yoruba|igbo|hausa"
 }
 """
 
@@ -38,8 +47,8 @@ class ReasoningAgent:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
         )
 
-    async def process(self, intake_data: Dict[str, Any], research_data: Dict[str, Any]) -> Dict[str, Any]:
-        context = f"FACTS: {json.dumps(intake_data)}\n\nSTATUTES: {json.dumps(research_data)}"
+    async def process(self, intake_data: Dict[str, Any], research_data: Dict[str, Any], user_language: str = "english") -> Dict[str, Any]:
+        context = f"FACTS: {json.dumps(intake_data)}\n\nSTATUTES: {json.dumps(research_data)}\n\nUSER_LANGUAGE: {user_language}"
         
         messages = [
             SystemMessage(content=REASONING_PROMPT),
@@ -49,6 +58,8 @@ class ReasoningAgent:
         try:
             response = await self.llm.ainvoke(messages)
             content = response.content
+            if isinstance(content, list):
+                content = " ".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
             return json.loads(content)

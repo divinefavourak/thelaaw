@@ -14,7 +14,7 @@ import httpx
 from .orchestrator import create_laaw_graph
 from .evolution_client import EvolutionAPIClient
 from .spitch_client import SpitchAPIClient
-from .database import init_db, get_case, update_case
+from .database import init_db, get_case, update_case, reset_session_if_stale
 from .tools.pdf_generator import PDFGenerator
 
 load_dotenv()
@@ -102,10 +102,18 @@ async def process_message(message_data: dict):
         if not raw_text and not base64_image:
             return
 
+        if is_audio and not raw_text:
+            await whatsapp.send_text(remote_jid, "I couldn't catch that audio. Could you type your message instead? 🙏")
+            return
+
         logger.info(f"Processing message from {remote_jid} (Type: {message_type})")
 
-        # 2. Retrieve Case + Session Memory
+        # Send typing indicator before processing
+        await whatsapp.send_presence(remote_jid, "composing")
+
+        # 2. Retrieve Case + Session Memory (auto-reset if >24h stale)
         case_data = get_case(remote_jid)
+        case_data = reset_session_if_stale(remote_jid, case_data)
 
         # 3. Run Agent Pipeline
         initial_state = {
@@ -159,18 +167,16 @@ async def process_message(message_data: dict):
             else:
                 await whatsapp.send_text(remote_jid, response_text)
 
-        # 5.2 PDF — only send if drafting ran and produced a document
+        # 5.2 PDF — send inline as base64 (no public URL needed)
         doc = result.get("drafted_document")
         if doc and doc.get("document_markdown"):
-            filename = pdf_gen.generate_legal_document(doc, result.get("extracted_facts", {}))
-            if filename:
-                server_url = os.getenv("SERVER_URL", "http://host.docker.internal:8000")
-                media_url = f"{server_url}/static/{filename}"
-                await whatsapp.send_media(
+            filename, pdf_bytes = pdf_gen.generate_legal_document_bytes(doc, result.get("extracted_facts", {}))
+            if pdf_bytes:
+                await whatsapp.send_media_base64(
                     to=remote_jid,
-                    media_url=media_url,
-                    caption="Here's your formal document.",
-                    filename=filename
+                    pdf_bytes=pdf_bytes,
+                    filename=filename,
+                    caption="Here's your formal document. 📄",
                 )
 
     except Exception as e:

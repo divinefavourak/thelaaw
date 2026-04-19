@@ -218,7 +218,8 @@ async def pipeline_node(state: AgentState) -> dict:
             agent = ReasoningAgent()
             facts = updates.get("extracted_facts") or state.get("extracted_facts", {})
             research = {"citations": updates.get("relevant_statutes", [])}
-            result = await agent.process(facts, research)
+            user_language = updates.get("user_language") or state.get("user_language", "english")
+            result = await agent.process(facts, research, user_language=user_language)
             updates["legal_brief"] = result
             updates["position_strength"] = result.get("strength", "moderate")
             updates["user_facing_response"] = result.get("user_facing_explanation", "")

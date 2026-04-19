@@ -2,6 +2,7 @@ import sqlite3
 import json
 import os
 from typing import Dict, Any, List, Optional
+from datetime import datetime, timedelta
 
 DB_PATH = os.getenv("DATABASE_PATH", "backend/data/thelaaw.db")
 
@@ -30,7 +31,7 @@ def get_case(phone_number: str) -> Dict[str, Any]:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT extracted_facts, history, session_state FROM cases WHERE phone_number = ?",
+        "SELECT extracted_facts, history, session_state, last_updated FROM cases WHERE phone_number = ?",
         (phone_number,)
     )
     row = cursor.fetchone()
@@ -41,8 +42,23 @@ def get_case(phone_number: str) -> Dict[str, Any]:
             "extracted_facts": json.loads(row[0]) if row[0] else {},
             "history": json.loads(row[1]) if row[1] else [],
             "session_state": json.loads(row[2]) if row[2] else _default_session(),
+            "last_updated": row[3],
         }
-    return {"extracted_facts": {}, "history": [], "session_state": _default_session()}
+    return {"extracted_facts": {}, "history": [], "session_state": _default_session(), "last_updated": None}
+
+
+def reset_session_if_stale(phone_number: str, case_data: Dict[str, Any], hours: int = 24) -> Dict[str, Any]:
+    """Reset session state if the case has been inactive for more than `hours` hours."""
+    last_updated = case_data.get("last_updated")
+    if last_updated:
+        try:
+            last_dt = datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+            if datetime.utcnow() - last_dt > timedelta(hours=hours):
+                case_data["session_state"] = _default_session()
+                case_data["history"] = []
+        except (ValueError, TypeError):
+            pass
+    return case_data
 
 def update_case(
     phone_number: str,

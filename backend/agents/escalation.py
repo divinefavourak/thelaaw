@@ -9,7 +9,35 @@ from langchain_core.messages import HumanMessage, SystemMessage
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-ESCALATION_PROMPT = """
+NIGERIAN_LEGAL_AID_CONTACTS = [
+    {
+        "organization": "Legal Aid Council of Nigeria (LACON)",
+        "why": "Free legal representation for criminal and civil matters",
+        "contact": "+234-9-670-4660 | legalaidcouncil.gov.ng"
+    },
+    {
+        "organization": "Nigerian Bar Association (NBA) Pro Bono",
+        "why": "Connects you with a volunteer lawyer in your state",
+        "contact": "nba.org.ng | +234-1-462-0816"
+    },
+    {
+        "organization": "FIDA Nigeria (Women & Children)",
+        "why": "Free legal aid for women and children facing domestic violence or family law issues",
+        "contact": "+234-1-774-4046 | fidanigeria.org"
+    },
+    {
+        "organization": "Spaces for Change (Lagos)",
+        "why": "Human rights violations, police brutality, community evictions",
+        "contact": "+234-803-528-8779 | spacesforchange.org"
+    },
+    {
+        "organization": "Emergency Services",
+        "why": "Immediate physical danger",
+        "contact": "Police: 199 | Ambulance: 112 | Fire: 01-7944929"
+    },
+]
+
+ESCALATION_PROMPT = f"""
 You are the ESCALATION AGENT for TheLaaw. You are the safety net.
 Review the facts and input. Determine if the user needs urgent human legal aid or emergency services.
 
@@ -17,16 +45,21 @@ Review the facts and input. Determine if the user needs urgent human legal aid o
 - Violence, physical harm, or threats.
 - Criminal exposure/arrest.
 - Urgent deadlines (< 48h).
-- Vulnerable populations.
+- Vulnerable populations (minors, domestic violence victims).
+
+# Verified Nigerian legal aid contacts (use ONLY these — do NOT invent contacts):
+{json.dumps(NIGERIAN_LEGAL_AID_CONTACTS, indent=2)}
+
+Pick the 1-2 most relevant contacts for this situation.
 
 Output format: JSON only.
-{
-  "escalation_needed": true | false, 
+{{
+  "escalation_needed": true | false,
   "urgency": "immediate|within_24h|within_week|none",
-  "reasons": ["..."], 
-  "recommended_routes": [{ "organization": "...", "why": "...", "contact": "..." }],
+  "reasons": ["..."],
+  "recommended_routes": [{{ "organization": "...", "why": "...", "contact": "..." }}],
   "user_facing_message": "..."
-}
+}}
 """
 
 class EscalationAgent:
