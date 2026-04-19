@@ -81,6 +81,7 @@ class AgentState(TypedDict):
     confirm_pdf_first: bool
     next_stage: str
     intents_queued: List[str]
+    agents_to_run: List[str]
 
 
 # ---------------------------------------------------------------------------
