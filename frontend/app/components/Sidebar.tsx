@@ -292,7 +292,7 @@ export default function Sidebar({
         {/* WhatsApp CTA */}
         <a
           id="whatsapp-cta"
-          href="https://wa.me/2348000000000"
+          href="https://wa.me//+2349071278025"
           target="_blank"
           rel="noopener noreferrer"
           style={{
