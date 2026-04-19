@@ -1,4 +1,5 @@
 from typing import TypedDict, List, Dict, Any, Optional
+import asyncio
 from langgraph.graph import StateGraph, END
 from .agents.intake import IntakeAgent
 from .agents.research import ResearchAgent
@@ -42,7 +43,7 @@ Rules:
 3. If message has MULTIPLE intents (e.g. "I was fired and I want a letter"):
    - This turn: handle the primary need (usually analysis first)
    - Queue the rest in intents_queued for next turn
-4. Only run drafting when: user explicitly asked for a document AND facts are complete AND confirm_pdf_first is false
+4. Only run drafting when: user explicitly asked for a document AND facts are complete AND confirm_pdf_first is false AND user's full name is known (in extracted_facts). If name is missing, run intake instead to ask for it first.
 5. Escalation runs whenever there are safety/criminal/urgent signals — even mid-conversation
 6. Set next_stage to reflect where the conversation should be after this turn
 
@@ -165,77 +166,93 @@ async def pipeline_node(state: AgentState) -> dict:
         "escalation_reason": None,
     }
 
-    for agent_name in agents_to_run:
-        logger.info(f"Running agent: {agent_name}")
+    # --- Run agents, parallelising where safe ---
+    # Pass 1: INTAKE (must run first — may short-circuit)
+    if "intake" in agents_to_run:
+        logger.info("Running agent: intake")
+        agent = IntakeAgent()
+        result = await agent.process(
+            state["raw_input"],
+            history=state.get("history"),
+            base64_image=state.get("base64_image"),
+            questions_asked=questions_asked,
+        )
+        updates["extracted_facts"] = {**updates["extracted_facts"], **result}
+        updates["legal_domain"] = result.get("domain")
+        updates["jurisdiction"] = result.get("jurisdiction")
+        updates["user_language"] = result.get("user_language", "english")
+        updates["intake_attempts"] = state.get("intake_attempts", 0) + 1
 
-        # --- INTAKE ---
-        if agent_name == "intake":
-            agent = IntakeAgent()
-            result = await agent.process(
-                state["raw_input"],
-                history=state.get("history"),
-                base64_image=state.get("base64_image"),
-                questions_asked=questions_asked,
-            )
-            updates["extracted_facts"] = {**updates["extracted_facts"], **result}
-            updates["legal_domain"] = result.get("domain")
-            updates["jurisdiction"] = result.get("jurisdiction")
-            updates["user_language"] = result.get("user_language", "english")
-            updates["intake_attempts"] = state.get("intake_attempts", 0) + 1
+        question = result.get("clarifying_question")
+        if question:
+            updates["user_facing_response"] = question
+            if question not in questions_asked:
+                questions_asked = questions_asked + [question]
+            updates["clarifying_questions"] = [question]
+            # Skip remaining agents — wait for user's answer
+            agents_to_run = []
 
-            question = result.get("clarifying_question")
-            if question:
-                updates["user_facing_response"] = question
-                # Track it so we never ask again
-                if question not in questions_asked:
-                    questions_asked = questions_asked + [question]
-                updates["clarifying_questions"] = [question]
-                break  # Don't run more agents — wait for user's answer
+    # Pass 2: ESCALATION + RESEARCH in parallel
+    parallel = [a for a in agents_to_run if a in ("escalation", "research")]
+    if parallel:
+        logger.info(f"Running in parallel: {parallel}")
+        facts = updates.get("extracted_facts") or state.get("extracted_facts", {})
 
-        # --- ESCALATION ---
-        elif agent_name == "escalation":
+        async def run_escalation():
             agent = EscalationAgent()
-            result = await agent.process(
-                updates.get("extracted_facts") or state.get("extracted_facts", {}),
-                state["raw_input"]
-            )
-            updates["escalation_needed"] = result.get("escalation_needed", False)
-            updates["escalation_reason"] = (
-                ", ".join(result.get("reasons", [])) if result.get("escalation_needed") else None
-            )
-            if result.get("escalation_needed") and result.get("urgency") == "immediate":
-                updates["user_facing_response"] = result.get("user_facing_message", "")
-                break
+            return await agent.process(facts, state["raw_input"])
 
-        # --- RESEARCH ---
-        elif agent_name == "research":
+        async def run_research():
             agent = ResearchAgent()
-            facts = updates.get("extracted_facts") or state.get("extracted_facts", {})
-            result = await agent.process(facts)
-            updates["relevant_statutes"] = result.get("citations", [])
+            return await agent.process(facts)
 
-        # --- REASONING ---
-        elif agent_name == "reasoning":
-            agent = ReasoningAgent()
-            facts = updates.get("extracted_facts") or state.get("extracted_facts", {})
-            research = {"citations": updates.get("relevant_statutes", [])}
-            user_language = updates.get("user_language") or state.get("user_language", "english")
-            result = await agent.process(facts, research, user_language=user_language)
-            updates["legal_brief"] = result
-            updates["position_strength"] = result.get("strength", "moderate")
-            updates["user_facing_response"] = result.get("user_facing_explanation", "")
+        tasks = []
+        if "escalation" in parallel:
+            tasks.append(run_escalation())
+        if "research" in parallel:
+            tasks.append(run_research())
 
-        # --- DRAFTING ---
-        elif agent_name == "drafting":
-            if state.get("confirm_pdf_first") and not state.get("needs_pdf"):
-                current = updates.get("user_facing_response", "")
-                updates["user_facing_response"] = (
-                    (current + "\n\nShould I send this as a PDF?").strip()
-                )
-                updates["drafted_document"] = None
-                # Signal that we're waiting for PDF confirmation
-                state["session_state"]["pending_for"] = "pdf_confirm"
-                break
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        idx = 0
+
+        if "escalation" in parallel:
+            esc_result = results[idx] if not isinstance(results[idx], Exception) else {}
+            idx += 1
+            updates["escalation_needed"] = esc_result.get("escalation_needed", False)
+            updates["escalation_reason"] = (
+                ", ".join(esc_result.get("reasons", [])) if esc_result.get("escalation_needed") else None
+            )
+            if esc_result.get("escalation_needed") and esc_result.get("urgency") == "immediate":
+                updates["user_facing_response"] = esc_result.get("user_facing_message", "")
+                agents_to_run = []  # Skip reasoning/drafting
+
+        if "research" in parallel:
+            res_result = results[idx] if not isinstance(results[idx], Exception) else {}
+            updates["relevant_statutes"] = res_result.get("citations", [])
+
+    # Pass 3: REASONING (depends on research output)
+    if "reasoning" in agents_to_run:
+        logger.info("Running agent: reasoning")
+        agent = ReasoningAgent()
+        facts = updates.get("extracted_facts") or state.get("extracted_facts", {})
+        research = {"citations": updates.get("relevant_statutes", [])}
+        user_language = updates.get("user_language") or state.get("user_language", "english")
+        result = await agent.process(facts, research, user_language=user_language)
+        updates["legal_brief"] = result
+        updates["position_strength"] = result.get("strength", "moderate")
+        updates["user_facing_response"] = result.get("user_facing_explanation", "")
+
+    # Pass 4: DRAFTING (depends on reasoning output)
+    if "drafting" in agents_to_run:
+        logger.info("Running agent: drafting")
+        if state.get("confirm_pdf_first") and not state.get("needs_pdf"):
+            current = updates.get("user_facing_response", "")
+            updates["user_facing_response"] = (
+                (current + "\n\nShould I send this as a PDF?").strip()
+            )
+            updates["drafted_document"] = None
+            state["session_state"]["pending_for"] = "pdf_confirm"
+        else:
             agent = DraftingAgent()
             brief = updates.get("legal_brief") or state.get("legal_brief", {})
             result = await agent.process(brief)

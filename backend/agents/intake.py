@@ -26,11 +26,21 @@ Your job: turn the user's message into a structured fact object — and identify
 - You know the basic facts: who did what to whom, and roughly when
 - You know the jurisdiction (default: lagos if not mentioned)
 
+# Before a document can be drafted, you MUST also collect:
+- The user's full name (for signing the letter)
+- The other party's name and address (for addressing the letter)
+- If these are missing and the user is asking for a document, ask for them before setting ready_for_research=true
+
 # Output — JSON only
 {
   "domain": "tenancy|labour|criminal|family|consumer|police_conduct|other",
   "jurisdiction": "lagos|abuja|...",
-  "parties": { "user_role": "...", "other_party": "..." },
+  "parties": {
+    "user_role": "...",
+    "user_full_name": "...",
+    "other_party": "...",
+    "other_party_address": "..."
+  },
   "timeline": [{ "date": "...", "event": "..." }],
   "key_events": ["..."],
   "documents_mentioned": ["..."],
@@ -42,7 +52,7 @@ Your job: turn the user's message into a structured fact object — and identify
 
 
 class IntakeAgent:
-    def __init__(self, model_name: str = "claude-sonnet-4-5"):
+    def __init__(self, model_name: str = "claude-haiku-4-5-20251001"):
         self.llm = ChatAnthropic(
             model=model_name,
             temperature=0,

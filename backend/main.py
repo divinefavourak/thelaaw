@@ -115,6 +115,14 @@ async def process_message(message_data: dict):
         case_data = get_case(remote_jid)
         case_data = reset_session_if_stale(remote_jid, case_data)
 
+        # Notify user for slow operations based on current stage
+        stage = case_data["session_state"].get("stage", "greeting")
+        pending_for = case_data["session_state"].get("pending_for")
+        if stage == "analysis":
+            await whatsapp.send_text(remote_jid, "⏳ Analysing your situation, give me a moment...")
+        elif pending_for == "pdf_confirm" or "draft" in (raw_text or "").lower() or "letter" in (raw_text or "").lower():
+            await whatsapp.send_text(remote_jid, "📝 Drafting your document, this may take a moment...")
+
         # 3. Run Agent Pipeline
         initial_state = {
             "phone_number": remote_jid,
