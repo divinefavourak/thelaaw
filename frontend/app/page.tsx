@@ -1,3 +1,4 @@
+// TheLaaw — Nigerian legal-aid assistant
 import ChatInterface from "./components/ChatInterface";
 
 export default function Home() {

@@ -15,22 +15,37 @@ Your job is to generate a highly optimized search query for a vector database of
 Facts provided:
 {facts}
 
-Generate a concise search query (1-2 sentences) that captures the core legal issue, including terms like "eviction notice period", "unpaid wages termination", "illegal police search dreadlocks", etc. 
+Generate a concise search query (1-2 sentences) that captures the core legal issue, including terms like "eviction notice period", "unpaid wages termination", "illegal police search dreadlocks", etc.
 ONLY output the query string, nothing else.
 """
 
-class ResearchAgent:
-    def __init__(self, chroma_path: str = None):
-        if chroma_path is None:
-            chroma_path = os.getenv("CHROMA_DB_PATH", "backend/data/chroma")
-        self.client = chromadb.PersistentClient(path=chroma_path)
-        self.collection = self.client.get_collection("nigerian_statutes")
-        # Use Haiku for cheap/fast query generation
-        self.llm = ChatAnthropic(
+# Module-level singletons — created once per process, not per request
+_chroma_client: chromadb.PersistentClient = None
+_chroma_collection = None
+_research_llm: ChatAnthropic = None
+
+def _get_chroma_collection():
+    global _chroma_client, _chroma_collection
+    if _chroma_collection is None:
+        chroma_path = os.getenv("CHROMA_DB_PATH", "backend/data/chroma")
+        _chroma_client = chromadb.PersistentClient(path=chroma_path)
+        _chroma_collection = _chroma_client.get_collection("nigerian_statutes")
+    return _chroma_collection
+
+def _get_research_llm():
+    global _research_llm
+    if _research_llm is None:
+        _research_llm = ChatAnthropic(
             model="claude-haiku-4-5-20251001",
             temperature=0,
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
         )
+    return _research_llm
+
+class ResearchAgent:
+    def __init__(self, chroma_path: str = None):
+        self.collection = _get_chroma_collection()
+        self.llm = _get_research_llm()
 
     async def generate_search_query(self, facts: Dict[str, Any]) -> str:
         """

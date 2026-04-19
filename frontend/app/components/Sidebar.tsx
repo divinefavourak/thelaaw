@@ -8,6 +8,8 @@ interface SidebarProps {
   onNewSession: () => void;
   showPipeline: boolean;
   onTogglePipeline: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 // All 36 states + FCT, grouped for the select
@@ -100,9 +102,11 @@ export default function Sidebar({
   onNewSession,
   showPipeline,
   onTogglePipeline,
+  isOpen,
+  onClose,
 }: SidebarProps) {
   return (
-    <aside style={{
+    <aside className={`sidebar${isOpen ? " open" : ""}`} style={{
       width: 256,
       flexShrink: 0,
       height: "100%",
@@ -110,13 +114,24 @@ export default function Sidebar({
       flexDirection: "column",
       background: "var(--bg-surface)",
       borderRight: "1px solid var(--border-1)",
-      position: "relative",
-      zIndex: 10,
       overflowY: "auto",
     }}>
       {/* ── Logo ─────────────────────────── */}
       <div style={{ padding: "22px 18px 14px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          {/* Mobile close button */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="icon-btn desktop-hide"
+              style={{ marginLeft: "auto", order: 99 }}
+              aria-label="Close menu"
+            >
+              <svg style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           <div style={{
             width: 40, height: 40, borderRadius: 12, flexShrink: 0,
             background: "linear-gradient(135deg, var(--gold-base), var(--gold-bright))",

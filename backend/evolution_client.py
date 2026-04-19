@@ -54,7 +54,7 @@ class EvolutionAPIClient:
         headers = {"apikey": self.api_key}
         payload = {
             "number": self._normalize_number(to),
-            "mediatype": "document" if filename.endswith(".pdf") else "image",
+            "mediatype": "document" if filename.endswith((".pdf", ".docx", ".doc")) else "image",
             "media": media_url,
             "caption": caption,
             "fileName": filename,
@@ -73,28 +73,29 @@ class EvolutionAPIClient:
                 return None
 
     async def send_media_base64(self, to: str, pdf_bytes: bytes, filename: str, caption: str = ""):
-        """Send a PDF directly as base64 without needing a public URL."""
-        url = f"{self.base_url}/message/sendMedia/{self.instance}"
-        headers = {"apikey": self.api_key}
-        b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-        payload = {
-            "number": self._normalize_number(to),
-            "mediatype": "document",
-            "media": f"data:application/pdf;base64,{b64}",
-            "caption": caption,
-            "fileName": filename,
-            "delay": 1200,
-        }
-        async with httpx.AsyncClient(timeout=60) as client:
+        """Send a document by saving it to static dir and sending a URL."""
+        import os, asyncio
+        from urllib.parse import quote
+        static_dir = "backend/static"
+        os.makedirs(static_dir, exist_ok=True)
+        filepath = os.path.join(static_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(pdf_bytes)
+
+        server_url = os.getenv("SERVER_URL", "http://localhost:8000")
+        media_url = f"{server_url}/static/{quote(filename)}"
+
+        result = await self.send_media(to, media_url, caption=caption, filename=filename)
+
+        # Clean up after a short delay (give Evolution time to fetch the file)
+        async def cleanup():
+            await asyncio.sleep(60)
             try:
-                response = await client.post(url, json=payload, headers=headers)
-                if not response.is_success:
-                    logger.error(f"Error sending PDF: HTTP {response.status_code} - {response.text}")
-                    return None
-                return response.json()
-            except Exception as e:
-                logger.error(f"Error sending PDF base64: {e}")
-                return None
+                os.remove(filepath)
+            except Exception:
+                pass
+        asyncio.create_task(cleanup())
+        return result
 
     async def download_media(self, message_id: str) -> bytes:
         """

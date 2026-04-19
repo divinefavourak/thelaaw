@@ -278,3 +278,36 @@ body {
   border-radius:var(--r-lg);
   box-shadow:var(--shadow-sm);
 }
+
+/* ── Responsive / Mobile ─────────────────────────────── */
+@media (max-width: 767px) {
+  /* Sidebar becomes a fixed overlay drawer */
+  .sidebar {
+    position: fixed !important;
+    top: 0; left: 0;
+    height: 100% !important;
+    z-index: 50 !important;
+    transform: translateX(-100%);
+    transition: transform 240ms cubic-bezier(.4,0,.2,1);
+  }
+  .sidebar.open {
+    transform: translateX(0) !important;
+    box-shadow: 0 0 80px rgba(0,0,0,.85) !important;
+  }
+  /* Dim backdrop behind drawer */
+  .sidebar-backdrop {
+    display: block !important;
+  }
+  .mobile-hide { display: none !important; }
+  .mobile-show { display: flex !important; }
+
+  /* Tighten message padding on small screens */
+  .messages-area { padding: 14px !important; gap: 14px !important; }
+  .input-area { padding: 10px 14px 14px !important; }
+}
+
+@media (min-width: 768px) {
+  .sidebar { transform: none !important; position: relative !important; }
+  .sidebar-backdrop { display: none !important; }
+  .desktop-hide { display: none !important; }
+}

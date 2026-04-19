@@ -14,12 +14,20 @@ export default function DocumentCard({ doc }: DocumentCardProps) {
   const meta = docTypeLabels[doc.document_type] ?? { label: doc.document_type, icon: "📄" };
 
   const handleDownload = () => {
-    if (doc.pdf_url) { window.open(doc.pdf_url, "_blank"); return; }
+    if (doc.pdf_url) {
+      const a = document.createElement("a");
+      a.href = doc.pdf_url;
+      a.download = doc.suggested_filename;
+      a.target = "_blank";
+      a.click();
+      return;
+    }
+    // Fallback: plain text export
     const blob = new Blob([doc.document_markdown], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = doc.suggested_filename.replace(".pdf", ".txt");
+    a.download = doc.suggested_filename.replace(/\.(pdf|docx)$/, ".txt");
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -83,7 +91,7 @@ export default function DocumentCard({ doc }: DocumentCardProps) {
           <svg style={{ width: 13, height: 13 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v4h16v-4M12 4v12m0 0l-4-4m4 4l4-4" />
           </svg>
-          Save PDF
+          Download .docx
         </button>
       </div>
 
