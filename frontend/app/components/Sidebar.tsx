@@ -288,6 +288,86 @@ export default function Sidebar({
 
       {/* ── Footer ───────────────────────── */}
       <div style={{ padding: "12px 18px 16px", borderTop: "1px solid var(--border-1)", flexShrink: 0 }}>
+
+        {/* WhatsApp CTA */}
+        <a
+          id="whatsapp-cta"
+          href="https://wa.me/2348000000000"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            borderRadius: 11,
+            background: "rgba(37,211,102,.08)",
+            border: "1px solid rgba(37,211,102,.22)",
+            textDecoration: "none",
+            marginBottom: 10,
+            transition: "background var(--t-base), border-color var(--t-base)",
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(37,211,102,.16)";
+            (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(37,211,102,.45)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(37,211,102,.08)";
+            (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(37,211,102,.22)";
+          }}
+        >
+          {/* WhatsApp icon with pulse dot */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <svg
+              viewBox="0 0 24 24"
+              style={{ width: 22, height: 22, fill: "#25D366" }}
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.862L.054 23.447a.75.75 0 00.91.91l5.585-1.479A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.713 9.713 0 01-4.953-1.355l-.355-.213-3.676.972.986-3.594-.232-.368A9.713 9.713 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/>
+            </svg>
+            {/* Live pulse dot */}
+            <span style={{
+              position: "absolute",
+              top: -2,
+              right: -2,
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "#25D366",
+              boxShadow: "0 0 0 0 rgba(37,211,102,.7)",
+              animation: "whatsapp-pulse 2s ease-out infinite",
+            }} />
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#25D366", lineHeight: 1.2, marginBottom: 1 }}>
+              Chat here
+            </p>
+            <p style={{ fontSize: 10, color: "var(--text-400)", lineHeight: 1.3 }}>
+              Talk to us on WhatsApp
+            </p>
+          </div>
+
+          {/* Arrow */}
+          <svg
+            style={{ width: 13, height: 13, color: "#25D366", marginLeft: "auto", flexShrink: 0, opacity: 0.7 }}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+
+        {/* Pulse keyframe injected inline */}
+        <style>{`
+          @keyframes whatsapp-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(37,211,102,.7); }
+            70%  { box-shadow: 0 0 0 6px rgba(37,211,102,0); }
+            100% { box-shadow: 0 0 0 0 rgba(37,211,102,0); }
+          }
+        `}</style>
+
         <div style={{ padding: "9px 11px", borderRadius: 9, background: "rgba(201,168,76,.04)", border: "1px solid var(--border-1)" }}>
           <p style={{ fontSize: 11, color: "var(--text-400)", lineHeight: 1.6 }}>
             TheLaaw provides <em style={{ color: "var(--text-300)" }}>legal information</em>, not advice. For active proceedings, consult a qualified lawyer.
