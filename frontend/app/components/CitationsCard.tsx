@@ -1,9 +1,11 @@
 "use client";
+import { useState } from "react";
 import { Citation } from "../types";
 
 interface CitationsCardProps { citations: Citation[]; }
 
 export default function CitationsCard({ citations }: CitationsCardProps) {
+  const [open, setOpen] = useState(false);
   if (!citations || citations.length === 0) return null;
 
   return (
@@ -13,13 +15,20 @@ export default function CitationsCard({ citations }: CitationsCardProps) {
       overflow: "hidden",
       boxShadow: "var(--shadow-sm)",
     }}>
-      {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "10px 14px",
-        background: "var(--bg-elevated)",
-        borderBottom: "1px solid var(--border-1)",
-      }}>
+      {/* Header — click to toggle */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px",
+          background: "var(--bg-elevated)",
+          border: "none", borderBottom: open ? "1px solid var(--border-1)" : "none",
+          cursor: "pointer", textAlign: "left",
+          transition: "background var(--t-fast)",
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
+      >
         <span style={{ fontSize: 14 }}>📚</span>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--c-research)" }}>
           Statute Citations
@@ -34,10 +43,16 @@ export default function CitationsCard({ citations }: CitationsCardProps) {
         }}>
           {citations.length} source{citations.length !== 1 ? "s" : ""}
         </span>
-      </div>
+        <svg
+          style={{ width: 13, height: 13, color: "var(--text-400)", marginLeft: 4, flexShrink: 0, transition: "transform 200ms ease", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
-      {/* Citations */}
-      <div style={{ background: "var(--bg-card)" }}>
+      {/* Citations — only rendered when open */}
+      {open && <div style={{ background: "var(--bg-card)" }}>
         {citations.map((c, i) => (
           <div key={i} style={{
             padding: "14px",
@@ -97,7 +112,7 @@ export default function CitationsCard({ citations }: CitationsCardProps) {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

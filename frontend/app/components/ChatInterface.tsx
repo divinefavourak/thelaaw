@@ -19,31 +19,42 @@ import { sendChatMessage, uploadDocument, transcribeAudio } from "../lib/api";
 import { getMockResponse } from "../lib/mockResponses";
 import MessageBubble from "./MessageBubble";
 import Sidebar from "./Sidebar";
+import PipelineBar from "./PipelineBar";
 
 // Native UUID — no external dep
 const uuidv4 = () => crypto.randomUUID();
 
-// ─── Agent pipeline simulation ────────────────────────────────────────────────
+// ─── Agent pipeline ────────────────────────────────────────────────────────────
 const AGENT_SEQUENCE: AgentName[] = ["intake", "research", "reasoning", "drafting", "escalation"];
 const AGENT_LABELS: Record<AgentName, string> = {
-  intake: "Classifying your situation",
-  research: "Searching Nigerian statutes",
-  reasoning: "Building your legal argument",
-  drafting: "Preparing document draft",
+  intake:     "Classifying your situation",
+  research:   "Searching Nigerian statutes",
+  reasoning:  "Building your legal argument",
+  drafting:   "Preparing document draft",
   escalation: "Running safety check",
 };
-function buildInitialSteps(): AgentStep[] {
-  return AGENT_SEQUENCE.map((agent) => ({ agent, status: "idle", label: AGENT_LABELS[agent] }));
+
+function buildLoadingSteps(): AgentStep[] {
+  return AGENT_SEQUENCE.map((agent, i) => ({
+    agent,
+    label: AGENT_LABELS[agent],
+    status: i === 0 ? "running" : "idle",
+  }));
 }
-async function simulatePipeline(onUpdate: (steps: AgentStep[]) => void): Promise<void> {
-  const steps = buildInitialSteps();
-  for (let i = 0; i < steps.length; i++) {
-    steps[i] = { ...steps[i], status: "running", startedAt: Date.now() };
-    onUpdate([...steps]);
-    await new Promise((r) => setTimeout(r, 700 + Math.random() * 500));
-    steps[i] = { ...steps[i], status: "done", completedAt: Date.now() };
-    onUpdate([...steps]);
-  }
+
+// Infer which agents ran from the response shape (fallback when backend omits agent_trace)
+function inferStepsFromResponse(data: ChatResponse): AgentStep[] {
+  const ran = new Set<AgentName>(["intake"]);
+  if (data.relevant_statutes?.length)                 ran.add("research");
+  if (data.reasoning)                                  ran.add("reasoning");
+  if (data.drafted_document?.document_markdown)        ran.add("drafting");
+  if (data.escalation?.escalation_needed !== undefined) ran.add("escalation");
+
+  return AGENT_SEQUENCE.map((agent) => ({
+    agent,
+    label: AGENT_LABELS[agent],
+    status: ran.has(agent) ? "done" : "idle",
+  }));
 }
 
 // ─── Text → safe HTML ─────────────────────────────────────────────────────────
@@ -243,6 +254,8 @@ export default function ChatInterface() {
   const [jurisdiction, setJurisdiction] = useState<JurisdictionOption>("lagos");
   const [showPipeline, setShowPipeline] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [pipelineSteps, setPipelineSteps] = useState<AgentStep[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -291,7 +304,7 @@ export default function ChatInterface() {
         content: "",
         timestamp: new Date(),
         isStreaming: true,
-        agentSteps: buildInitialSteps(),
+        agentSteps: buildLoadingSteps(),
       };
 
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
@@ -299,11 +312,8 @@ export default function ChatInterface() {
       setInputText("");
       if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-      if (showPipeline) {
-        simulatePipeline((steps) =>
-          setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, agentSteps: steps } : m))
-        );
-      }
+      // Show "Intake running" while we wait — no fake advancement
+      if (showPipeline) setPipelineSteps(buildLoadingSteps());
 
       try {
         let data: ChatResponse;
@@ -325,6 +335,8 @@ export default function ChatInterface() {
           ? data.clarifying_questions.join("\n")
           : data.user_facing_response;
 
+        const finalSteps = data.agent_trace ?? inferStepsFromResponse(data);
+        if (showPipeline) setPipelineSteps(finalSteps);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -336,7 +348,7 @@ export default function ChatInterface() {
                 reasoning: data.reasoning,
                 escalation: data.escalation,
                 draftedDocument: data.drafted_document,
-                agentSteps: data.agent_trace ?? m.agentSteps,
+                agentSteps: finalSteps,
               }
               : m
           )
@@ -422,18 +434,35 @@ export default function ChatInterface() {
   const handleNewSession = () => {
     setMessages([]);
     setInputText("");
+    setPipelineSteps([]);
+    setSidebarOpen(false);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", height: "100%", background: "var(--bg-void)" }}>
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 40,
+            background: "rgba(0,0,0,.55)",
+            backdropFilter: "blur(2px)",
+          }}
+        />
+      )}
+
       <Sidebar
         jurisdiction={jurisdiction}
         onJurisdictionChange={setJurisdiction}
         onNewSession={handleNewSession}
         showPipeline={showPipeline}
         onTogglePipeline={() => setShowPipeline((v) => !v)}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       {/* ── Main pane ─────────────────────────────────────────────────────── */}
@@ -453,6 +482,18 @@ export default function ChatInterface() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Mobile hamburger */}
+            <button
+              className="icon-btn desktop-hide"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label="Open menu"
+              style={{ flexShrink: 0 }}
+            >
+              <svg style={{ width: 17, height: 17 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
             {/* Live indicator */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{
@@ -463,10 +504,10 @@ export default function ChatInterface() {
               <span style={{ fontSize: 12, fontWeight: 600, color: "var(--green)" }}>Live</span>
             </div>
 
-            <div style={{ width: 1, height: 16, background: "var(--border-2)" }} />
+            <div className="mobile-hide" style={{ width: 1, height: 16, background: "var(--border-2)" }} />
 
             {/* Session ID */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div className="mobile-hide" style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <svg style={{ width: 12, height: 12, color: "var(--text-400)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
@@ -478,10 +519,10 @@ export default function ChatInterface() {
               </span>
             </div>
 
-            <div style={{ width: 1, height: 16, background: "var(--border-2)" }} />
+            <div className="mobile-hide" style={{ width: 1, height: 16, background: "var(--border-2)" }} />
 
             {/* Jurisdiction */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div className="mobile-hide" style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <svg style={{ width: 12, height: 12, color: "var(--text-400)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -515,8 +556,14 @@ export default function ChatInterface() {
           </div>
         </header>
 
+        {/* Pipeline bar — below header */}
+        {showPipeline && (
+          <PipelineBar steps={pipelineSteps} isLoading={isLoading} />
+        )}
+
         {/* Messages area */}
         <div
+          className="messages-area"
           style={{
             flex: 1,
             overflowY: "auto",
@@ -571,7 +618,7 @@ export default function ChatInterface() {
         </div>
 
         {/* ── Input area ──────────────────────────────────────────────────── */}
-        <div style={{
+        <div className="input-area" style={{
           flexShrink: 0,
           padding: "14px 24px 18px",
           borderTop: "1px solid var(--border-1)",
