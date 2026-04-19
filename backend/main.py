@@ -65,7 +65,11 @@ async def process_message(message_data: dict):
         remote_jid = message_data.get("key", {}).get("remoteJid")
         message_id = message_data.get("key", {}).get("id")
         message_type = message_data.get("messageType")
-        
+
+        # Ignore group messages
+        if remote_jid and "@g.us" in remote_jid:
+            return
+
         raw_text = ""
         base64_image = None
         is_audio = False

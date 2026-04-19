@@ -75,6 +75,9 @@ class IntakeAgent:
         try:
             response = await self.llm.ainvoke(messages)
             text_response = response.content
+            if isinstance(text_response, list):
+                text_response = " ".join(block.get("text", "") if isinstance(block, dict) else str(block) for block in text_response)
+            text_response = text_response.strip()
             if "```json" in text_response:
                 text_response = text_response.split("```json")[1].split("```")[0].strip()
             return json.loads(text_response)

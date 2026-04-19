@@ -1,2 +1,42 @@
-FROM atendai/evolution-api:latest
+FROM node:20-alpine AS builder
+
+RUN apk add --no-cache git python3 make g++
+
+WORKDIR /app
+
+RUN git clone --depth=1 --branch develop https://github.com/EvolutionAPI/evolution-api.git .
+
+RUN npm install --legacy-peer-deps
+
+# Install @swc/core BEFORE build so tsup uses it for emitDecoratorMetadata (fixes class field ordering)
+RUN npm install --save-dev @swc/core --legacy-peer-deps
+
+# Generate Prisma types before TypeScript build
+ENV DATABASE_PROVIDER=postgresql
+RUN npx prisma generate --schema ./prisma/postgresql-schema.prisma
+
+# Skip type-checking, build only CJS (no ESM) to halve peak memory usage
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN sed -i 's/"build": "tsc --noEmit && tsup"/"build": "tsup"/' package.json
+RUN node -e "const fs=require('fs');const cfg=fs.readFileSync('tsup.config.ts','utf8');fs.writeFileSync('tsup.config.ts',cfg.replace(/format:\s*\[.*?\]/s,\"format: ['cjs']\"));" 2>/dev/null || true
+# Fix class field initialization order: replace this.configService with module-level configService singleton
+RUN sed -i 's/private logBaileys = this\.configService\.get/private logBaileys = configService.get/' src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+RUN npm run build
+
+FROM node:20-alpine
+
+RUN apk add --no-cache bash ffmpeg
+
+WORKDIR /evolution
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
+COPY --from=builder /app/Docker ./Docker
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/runWithProvider.js ./
+
 EXPOSE 8080
+
+ENTRYPOINT ["/bin/bash", "-c", ". ./Docker/scripts/deploy_database.sh && npm run start:prod"]
