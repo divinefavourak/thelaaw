@@ -137,11 +137,8 @@ async def process_message(message_data: dict):
         )
         
         # 5. Delivery Logic
-        # 5.1 Text/Audio Response
-        response_text = result.get("user_facing_response")
-        if result.get("clarifying_questions"):
-            response_text = "\n".join(result["clarifying_questions"])
-            
+        response_text = result.get("user_facing_response", "").strip()
+
         if response_text:
             if is_audio:
                 audio_url = await spitch.synthesize(response_text)
@@ -151,8 +148,8 @@ async def process_message(message_data: dict):
                     await whatsapp.send_text(remote_jid, response_text)
             else:
                 await whatsapp.send_text(remote_jid, response_text)
-            
-        # 5.2 PDF Generation
+
+        # 5.2 PDF — only send if drafting ran and produced a document
         doc = result.get("drafted_document")
         if doc and doc.get("document_markdown"):
             filename = pdf_gen.generate_legal_document(doc, result.get("extracted_facts", {}))
@@ -162,7 +159,7 @@ async def process_message(message_data: dict):
                 await whatsapp.send_media(
                     to=remote_jid,
                     media_url=media_url,
-                    caption="I have prepared this formal document for you.",
+                    caption="Here's your formal document.",
                     filename=filename
                 )
 
