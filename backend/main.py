@@ -186,9 +186,13 @@ async def process_message(message_data: dict):
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     payload = await request.json()
     event = payload.get("event")
-    
+    logger.info(f"Webhook received — event: {event} | keys: {list(payload.keys())} | data_type: {type(payload.get('data')).__name__} | data_preview: {str(payload.get('data'))[:300]}")
+
     if event == "messages.upsert":
         data = payload.get("data", {})
+        # Evolution API v2 may wrap messages in a list
+        if isinstance(data, list):
+            data = data[0] if data else {}
         if not data.get("key", {}).get("fromMe"):
             background_tasks.add_task(process_message, data)
     
