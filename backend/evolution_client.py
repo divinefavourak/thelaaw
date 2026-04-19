@@ -20,10 +20,12 @@ class EvolutionAPIClient:
             "delay": 1200
         }
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             try:
                 response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
+                if not response.is_success:
+                    logger.error(f"Error sending WhatsApp text: HTTP {response.status_code} - {response.text}")
+                    return None
                 return response.json()
             except Exception as e:
                 logger.error(f"Error sending WhatsApp text: {e}")
@@ -40,11 +42,13 @@ class EvolutionAPIClient:
             "fileName": filename,
             "delay": 1200
         }
-        
-        async with httpx.AsyncClient() as client:
+
+        async with httpx.AsyncClient(timeout=30) as client:
             try:
                 response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
+                if not response.is_success:
+                    logger.error(f"Error sending WhatsApp media: HTTP {response.status_code} - {response.text}")
+                    return None
                 return response.json()
             except Exception as e:
                 logger.error(f"Error sending WhatsApp media: {e}")
