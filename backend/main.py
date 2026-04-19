@@ -15,7 +15,7 @@ from .orchestrator import create_laaw_graph
 from .evolution_client import EvolutionAPIClient
 from .spitch_client import SpitchAPIClient
 from .database import init_db, get_case, update_case, reset_session_if_stale
-from .tools.pdf_generator import PDFGenerator
+from .tools.docx_generator import DocxGenerator
 
 load_dotenv()
 
@@ -34,7 +34,7 @@ app.mount("/static", StaticFiles(directory="backend/static"), name="static")
 graph = create_laaw_graph()
 whatsapp = EvolutionAPIClient()
 spitch = SpitchAPIClient()
-pdf_gen = PDFGenerator()
+doc_gen = DocxGenerator()
 
 @app.get("/health")
 async def health():
@@ -176,16 +176,16 @@ async def process_message(message_data: dict):
             else:
                 await whatsapp.send_text(remote_jid, response_text)
 
-        # 5.2 PDF — send inline as base64 (no public URL needed)
+        # 5.2 Document — generate and send as .docx
         doc = result.get("drafted_document")
         if doc and doc.get("document_markdown"):
-            filename, pdf_bytes = pdf_gen.generate_legal_document_bytes(doc, result.get("extracted_facts", {}))
-            if pdf_bytes:
+            filename, docx_bytes = doc_gen.generate(doc, result.get("extracted_facts", {}))
+            if docx_bytes:
                 await whatsapp.send_media_base64(
                     to=remote_jid,
-                    pdf_bytes=pdf_bytes,
+                    pdf_bytes=docx_bytes,
                     filename=filename,
-                    caption="Here's your formal document. 📄",
+                    caption="Here's your formal document.",
                 )
 
     except Exception as e:

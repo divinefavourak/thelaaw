@@ -5,6 +5,7 @@ from .agents.intake import IntakeAgent
 from .agents.research import ResearchAgent
 from .agents.reasoning import ReasoningAgent
 from .agents.drafting import DraftingAgent
+from .agents.editing import EditingAgent
 from .agents.escalation import EscalationAgent
 import logging
 import json
@@ -27,6 +28,7 @@ Available agents:
 - research     : Find relevant Nigerian statutes (only when facts are clear)
 - reasoning    : Analyse legal position, explain rights in plain language
 - drafting     : Write a formal document (demand letter, complaint, etc.)
+- editing      : Modify an already-drafted document based on user's edit request
 
 Session stages:
 - greeting     : First message or very vague — run intake
@@ -41,6 +43,7 @@ Rules:
    - If name is missing → agents: ["intake"] to collect name first
    - NEVER ask "should I send as PDF?" — always draft and send directly
 3. If `has_legal_brief` is true: skip research and reasoning. Go directly to drafting if user wants a document, or just reply from existing analysis.
+4. If user wants to edit/change/modify a document that was already sent (e.g. "change the subject", "remove the second demand", "add my address") → agents: ["editing"]
 4. If message has MULTIPLE intents (e.g. "I was fired and I want a letter"):
    - This turn: handle the primary need (usually analysis first)
    - Queue the rest in intents_queued for next turn
@@ -49,7 +52,7 @@ Rules:
 
 Output JSON only:
 {
-  "agents": ["intake"|"escalation"|"research"|"reasoning"|"drafting"],
+  "agents": ["intake"|"escalation"|"research"|"reasoning"|"drafting"|"editing"],
   "needs_pdf": true|false,
   "confirm_pdf_first": false,
   "next_stage": "greeting|intake|analysis|complete",
@@ -156,9 +159,10 @@ async def pipeline_node(state: AgentState) -> dict:
     sess = state.get("session_state", {})
     questions_asked = sess.get("questions_asked", [])
 
-    # Restore cached brief/statutes from session (persisted across turns)
+    # Restore cached data from session (persisted across turns)
     cached_brief = state.get("legal_brief") or sess.get("legal_brief") or {}
     cached_statutes = state.get("relevant_statutes") or sess.get("relevant_statutes") or []
+    cached_draft = state.get("drafted_document") or sess.get("drafted_document") or None
 
     updates: dict = {
         "extracted_facts": state.get("extracted_facts", {}),
@@ -261,10 +265,23 @@ async def pipeline_node(state: AgentState) -> dict:
         logger.info("Running agent: drafting")
         agent = DraftingAgent()
         brief = updates.get("legal_brief") or state.get("legal_brief") or sess.get("legal_brief", {})
-        result = await agent.process(brief)
+        facts = updates.get("extracted_facts") or state.get("extracted_facts", {})
+        result = await agent.process(brief, extracted_facts=facts)
         updates["drafted_document"] = result if result.get("document_markdown") else None
         if updates["drafted_document"]:
             updates["user_facing_response"] = "Your formal letter is ready — sending it now."
+
+    # Pass 5: EDITING (modifies an existing draft)
+    if "editing" in agents_to_run:
+        logger.info("Running agent: editing")
+        current_doc = cached_draft or updates.get("drafted_document")
+        if current_doc:
+            agent = EditingAgent()
+            result = await agent.process(current_doc, state["raw_input"])
+            updates["drafted_document"] = result
+            updates["user_facing_response"] = "Updated — here's the revised document."
+        else:
+            updates["user_facing_response"] = "I don't have a document on file to edit yet. Ask me to draft one first."
 
     # Update session state — persist brief + statutes so next turn can skip re-analysis
     updated_session = {
@@ -275,6 +292,7 @@ async def pipeline_node(state: AgentState) -> dict:
         "intents_queued": state.get("intents_queued", []),
         "legal_brief": updates.get("legal_brief") or cached_brief,
         "relevant_statutes": updates.get("relevant_statutes") or cached_statutes,
+        "drafted_document": updates.get("drafted_document") or cached_draft,
     }
 
     updates["session_state"] = updated_session
