@@ -54,7 +54,7 @@ class EvolutionAPIClient:
         headers = {"apikey": self.api_key}
         payload = {
             "number": self._normalize_number(to),
-            "mediatype": "document" if filename.endswith(".pdf") else "image",
+            "mediatype": "document" if filename.endswith((".pdf", ".docx", ".doc")) else "image",
             "media": media_url,
             "caption": caption,
             "fileName": filename,
