@@ -5,5 +5,9 @@ export default function Home() {
     <div className="h-full flex flex-col">
       <ChatInterface />
     </div>
-  );
+  )
+
+
 }
+
+
