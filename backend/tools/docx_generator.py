@@ -162,7 +162,12 @@ class DocxGenerator:
 
             doc_type = doc_data.get("document_type", "legal_document")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{doc_type}_{timestamp}.docx"
+            user_title = doc_data.get("subject", "").strip()
+            if user_title:
+                safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in user_title)[:50].strip()
+                filename = f"{safe_title}_{timestamp}.docx"
+            else:
+                filename = f"{doc_type}_{timestamp}.docx"
 
             logger.info(f"Docx generated: {filename}")
             return filename, docx_bytes

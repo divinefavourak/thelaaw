@@ -32,6 +32,7 @@ Your job: turn the user's message into a structured fact object — and identify
 - The user's full name (for signing the letter)
 - The other party's name and address (for addressing the letter)
 - Any domain-specific details the letter needs (e.g. tenancy type, amount owed, date of termination)
+- The document title the user wants (e.g. "Demand Letter to Landlord") — ask "What would you like to title this letter?" if not provided
 - If any of these are missing, ask for them — ONE question at a time — before setting ready_for_research=true
 
 # Output — JSON only
@@ -44,6 +45,7 @@ Your job: turn the user's message into a structured fact object — and identify
     "other_party": "...",
     "other_party_address": "..."
   },
+  "document_title": "user-provided title or null",
   "tenancy_type": "weekly|monthly|quarterly|yearly|unknown",
   "timeline": [{ "date": "...", "event": "..." }],
   "key_events": ["..."],

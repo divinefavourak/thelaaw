@@ -29,7 +29,7 @@ You receive:
 - sender_address: user's address if known, else ""
 - recipient_name: other party's name from extracted_facts.parties.other_party
 - recipient_address: other party's address from extracted_facts.parties.other_party_address
-- subject: concise subject line (e.g. "UNLAWFUL NOTICE TO QUIT — DEMAND FOR PROPER NOTICE PERIOD")
+- subject: use extracted_facts.document_title if provided (uppercased); otherwise generate a concise subject line from the facts
 - salutation: "Dear Mr./Mrs. [recipient_name]" (use actual name)
 - paragraphs: list of body paragraphs — each a complete sentence. Include: (a) opening stating purpose, (b) facts as they occurred, (c) applicable law with section numbers, (d) how the facts breach the law
 - demands: numbered list of specific demands (e.g. "Provide written notice of not less than 6 months as required by Section 13 of the Lagos Tenancy Law 2011")
