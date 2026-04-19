@@ -1,7 +1,6 @@
 "use client";
 
 import { Message } from "../types";
-import AgentPipeline from "./AgentPipeline";
 import CitationsCard from "./CitationsCard";
 import ReasoningCard from "./ReasoningCard";
 import DocumentCard from "./DocumentCard";
@@ -9,7 +8,7 @@ import EscalationCard from "./EscalationCard";
 
 interface MessageBubbleProps {
   message: Message;
-  showPipeline?: boolean;
+  showPipeline?: boolean; // kept for compat; pipeline is now in the top bar
 }
 
 function formatTime(d: Date) {
@@ -62,7 +61,7 @@ function UserBubble({ message }: { message: Message }) {
   );
 }
 
-function AssistantBubble({ message, showPipeline }: { message: Message; showPipeline?: boolean }) {
+function AssistantBubble({ message }: { message: Message }) {
   return (
     <div className="anim-fade-up" style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
       <div style={{
@@ -75,10 +74,6 @@ function AssistantBubble({ message, showPipeline }: { message: Message; showPipe
       </div>
 
       <div style={{ flex: 1, maxWidth: "calc(100% - 50px)", display: "flex", flexDirection: "column", gap: 4 }}>
-        {showPipeline && message.agentSteps && message.agentSteps.length > 0 && (
-          <AgentPipeline steps={message.agentSteps} isVisible />
-        )}
-
         {message.isStreaming && !message.content && (
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 5,
@@ -123,5 +118,5 @@ function AssistantBubble({ message, showPipeline }: { message: Message; showPipe
 
 export default function MessageBubble({ message, showPipeline }: MessageBubbleProps) {
   if (message.role === "user") return <UserBubble message={message} />;
-  return <AssistantBubble message={message} showPipeline={showPipeline} />;
+  return <AssistantBubble message={message} />;
 }
