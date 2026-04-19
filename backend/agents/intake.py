@@ -10,77 +10,97 @@ from langchain_core.messages import HumanMessage, SystemMessage
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-INTAKE_PROMPT = """
-You are the INTAKE AGENT for TheLaaw, a legal rights companion for everyday Nigerians.
-Your ONLY job is to turn a user's description (text or document image) into a structured fact object.
+INTAKE_PROMPT = """You are the intake agent for TheLaaw, a Nigerian legal-aid WhatsApp assistant.
 
-# DOCUMENT EXTRACTION MODE
-If an image of a document is provided, extract ALL text accurately. 
-Specifically look for:
-- Parties (Landlord, Tenant, Employer, Employee)
-- Key Dates (Commencement, Expiry, Notice given)
-- Clauses (Rent amount, Notice period, Service charge, etc.)
-- Signatures and witnesses.
+Your job: turn the user's message into a structured fact object — and identify exactly what's still missing.
 
-# Your process
-1. Classify the legal domain: tenancy, labour, criminal, family, consumer, police_conduct, other.
-2. Extract structured facts: jurisdiction (default "lagos"), parties, timeline, key_events, documents_mentioned.
-3. Missing facts: Ask AT MOST TWO targeted clarifying questions.
-4. Assess emotional state: Acknowledge briefly if distressed.
+# Rules
+- You have the full conversation history. Use it. Do NOT ask for anything already answered.
+- Ask AT MOST ONE question per turn. Pick the most important missing fact.
+- If you already have enough to understand the core issue, set ready_for_research=true even if minor details are missing.
+- If an image is provided, extract all visible text from it accurately.
+- Keep your clarifying question short and conversational — like a smart friend asking, not a form.
 
-Output format: JSON only.
+# What counts as "enough"
+- You know the legal domain (tenancy, labour, criminal, family, consumer, police_conduct, other)
+- You know the basic facts: who did what to whom, and roughly when
+- You know the jurisdiction (default: lagos if not mentioned)
+
+# Output — JSON only
 {
-  "domain": "...", "jurisdiction": "...", "parties": { "user_role": "...", "other_party": "..." },
-  "timeline": [{ "date": "...", "event": "..." }], "key_events": ["..."],
-  "documents_mentioned": ["..."], "clarifying_questions": ["..."],
-  "ready_for_research": true | false, "user_language": "...",
-  "extracted_document_text": "..." 
-}
-"""
+  "domain": "tenancy|labour|criminal|family|consumer|police_conduct|other",
+  "jurisdiction": "lagos|abuja|...",
+  "parties": { "user_role": "...", "other_party": "..." },
+  "timeline": [{ "date": "...", "event": "..." }],
+  "key_events": ["..."],
+  "documents_mentioned": ["..."],
+  "clarifying_question": "single question string, or null if none needed",
+  "ready_for_research": true | false,
+  "user_language": "english|pidgin|yoruba|igbo|hausa",
+  "extracted_document_text": "..."
+}"""
+
 
 class IntakeAgent:
     def __init__(self, model_name: str = "claude-sonnet-4-5"):
-        # We use Sonnet for Intake now because it has Vision and better extraction
         self.llm = ChatAnthropic(
-            model=model_name, 
+            model=model_name,
             temperature=0,
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
         )
 
-    async def process(self, raw_input: str, history: List[Dict[str, str]] = None, base64_image: str = None) -> Dict[str, Any]:
-        system_msg = SystemMessage(content=INTAKE_PROMPT)
-        
+    async def process(
+        self,
+        raw_input: str,
+        history: List[Dict[str, str]] = None,
+        base64_image: str = None,
+        questions_asked: List[str] = None,
+    ) -> Dict[str, Any]:
+
+        # Build context for Claude
+        history_text = ""
+        if history:
+            history_text = "\n".join(
+                f"{m['role'].upper()}: {m['content']}" for m in history[-10:]
+            )
+
+        already_asked = ""
+        if questions_asked:
+            already_asked = "\n\nQuestions already asked (do NOT repeat these):\n" + "\n".join(f"- {q}" for q in questions_asked)
+
+        system_content = INTAKE_PROMPT + already_asked
+
         content = []
+        if history_text:
+            content.append({"type": "text", "text": f"CONVERSATION SO FAR:\n{history_text}\n\n"})
         if raw_input:
-            content.append({"type": "text", "text": raw_input})
-            
+            content.append({"type": "text", "text": f"LATEST MESSAGE: {raw_input}"})
         if base64_image:
-            # Add image to message content for Claude Vision
             content.append({
                 "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": base64_image
-                }
+                "source": {"type": "base64", "media_type": "image/jpeg", "data": base64_image}
             })
-            
-        messages = [system_msg]
-        if history:
-            for msg in history:
-                messages.append(HumanMessage(content=msg["content"]))
-        
-        messages.append(HumanMessage(content=content))
-        
+
         try:
-            response = await self.llm.ainvoke(messages)
-            text_response = response.content
-            if isinstance(text_response, list):
-                text_response = " ".join(block.get("text", "") if isinstance(block, dict) else str(block) for block in text_response)
-            text_response = text_response.strip()
-            if "```json" in text_response:
-                text_response = text_response.split("```json")[1].split("```")[0].strip()
-            return json.loads(text_response)
+            response = await self.llm.ainvoke([
+                SystemMessage(content=system_content),
+                HumanMessage(content=content),
+            ])
+            text = response.content
+            if isinstance(text, list):
+                text = " ".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in text)
+            text = text.strip()
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            result = json.loads(text)
+            # Normalise: old format used clarifying_questions list, new uses single string
+            if "clarifying_questions" in result and "clarifying_question" not in result:
+                qs = result.pop("clarifying_questions", [])
+                result["clarifying_question"] = qs[0] if qs else None
+            return result
         except Exception as e:
             logger.error(f"IntakeAgent Error: {e}")
-            return {"ready_for_research": False, "clarifying_questions": ["Sorry, I couldn't read that document or message clearly. Could you try again?"]}
+            return {
+                "ready_for_research": False,
+                "clarifying_question": "Sorry, I didn't catch that clearly. Could you describe your situation again?",
+            }

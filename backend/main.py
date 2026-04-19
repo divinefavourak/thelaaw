@@ -104,12 +104,9 @@ async def process_message(message_data: dict):
 
         logger.info(f"Processing message from {remote_jid} (Type: {message_type})")
 
-        # 2. Retrieve Case Memory
+        # 2. Retrieve Case + Session Memory
         case_data = get_case(remote_jid)
-        # Note: We should store intake_attempts in DB too for true persistence
-        # For now, we'll derive it or default it
-        intake_attempts = case_data.get("extracted_facts", {}).get("intake_attempts", 0)
-        
+
         # 3. Run Agent Pipeline
         initial_state = {
             "phone_number": remote_jid,
@@ -118,22 +115,35 @@ async def process_message(message_data: dict):
             "message_type": "audio" if is_audio else "text",
             "extracted_facts": case_data["extracted_facts"],
             "history": case_data["history"],
-            "intake_attempts": intake_attempts,
+            "session_state": case_data["session_state"],
+            "intake_attempts": case_data["session_state"].get("intake_attempts", 0),
             "relevant_statutes": [],
             "clarifying_questions": [],
-            "user_facing_response": ""
+            "user_facing_response": "",
+            "needs_pdf": False,
+            "confirm_pdf_first": True,
+            "next_stage": case_data["session_state"].get("stage", "greeting"),
+            "intents_queued": case_data["session_state"].get("intents_queued", []),
         }
-        
+
         result = await graph.ainvoke(initial_state)
-        
-        # 4. Update Case Memory
-        new_facts = result.get("extracted_facts", {})
-        new_facts["intake_attempts"] = result.get("intake_attempts", 0)
-        
+
+        # 4. Update Case + Session Memory
+        new_history = case_data["history"] + [
+            {"role": "user", "content": raw_text or "[media]"},
+            {"role": "assistant", "content": result.get("user_facing_response", "")},
+        ]
+        # Keep history bounded to last 40 messages (20 exchanges)
+        new_history = new_history[-40:]
+
+        updated_session = result.get("session_state", case_data["session_state"])
+        updated_session["intake_attempts"] = result.get("intake_attempts", 0)
+
         update_case(
-            remote_jid, 
-            new_facts, 
-            result.get("history", []) + [{"role": "user", "content": raw_text}, {"role": "assistant", "content": result.get("user_facing_response", "")}]
+            remote_jid,
+            result.get("extracted_facts", {}),
+            new_history,
+            updated_session,
         )
         
         # 5. Delivery Logic
