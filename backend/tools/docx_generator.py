@@ -4,9 +4,6 @@ from datetime import datetime
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
-
 logger = logging.getLogger(__name__)
 
 
@@ -29,19 +26,8 @@ def _add_paragraph(doc, text, alignment=WD_ALIGN_PARAGRAPH.LEFT, bold=False,
 
 
 def _add_separator(doc):
-    """Thin horizontal rule."""
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
-    pPr = p._p.get_or_add_pPr()
-    pBdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "6")
-    bottom.set(qn("w:space"), "1")
-    bottom.set(qn("w:color"), "000000")
-    pBdr.append(bottom)
-    pPr.append(pBdr)
+    """Simple separator line — no lxml XML manipulation."""
+    _add_paragraph(doc, "─" * 60, size=9, space_before=2, space_after=2)
 
 
 class DocxGenerator:
@@ -164,7 +150,8 @@ class DocxGenerator:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             user_title = doc_data.get("subject", "").strip()
             if user_title:
-                safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in user_title)[:50].strip()
+                # Replace spaces and special chars — URL must have no spaces
+                safe_title = "".join(c if c.isalnum() or c in "_-" else "_" for c in user_title)[:50].strip("_")
                 filename = f"{safe_title}_{timestamp}.docx"
             else:
                 filename = f"{doc_type}_{timestamp}.docx"

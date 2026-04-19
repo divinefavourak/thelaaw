@@ -73,8 +73,9 @@ class EvolutionAPIClient:
                 return None
 
     async def send_media_base64(self, to: str, pdf_bytes: bytes, filename: str, caption: str = ""):
-        """Send a PDF by saving it to static dir and sending a URL."""
+        """Send a document by saving it to static dir and sending a URL."""
         import os, asyncio
+        from urllib.parse import quote
         static_dir = "backend/static"
         os.makedirs(static_dir, exist_ok=True)
         filepath = os.path.join(static_dir, filename)
@@ -82,7 +83,7 @@ class EvolutionAPIClient:
             f.write(pdf_bytes)
 
         server_url = os.getenv("SERVER_URL", "http://localhost:8000")
-        media_url = f"{server_url}/static/{filename}"
+        media_url = f"{server_url}/static/{quote(filename)}"
 
         result = await self.send_media(to, media_url, caption=caption, filename=filename)
 
