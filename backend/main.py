@@ -117,10 +117,10 @@ async def process_message(message_data: dict):
 
         # Notify user for slow operations based on current stage
         stage = case_data["session_state"].get("stage", "greeting")
-        pending_for = case_data["session_state"].get("pending_for")
-        if stage == "analysis":
+        raw_lower = (raw_text or "").lower()
+        if stage == "analysis" and not case_data["session_state"].get("legal_brief"):
             await whatsapp.send_text(remote_jid, "⏳ Analysing your situation, give me a moment...")
-        elif pending_for == "pdf_confirm" or "draft" in (raw_text or "").lower() or "letter" in (raw_text or "").lower():
+        elif "draft" in raw_lower or "letter" in raw_lower or "document" in raw_lower:
             await whatsapp.send_text(remote_jid, "📝 Drafting your document, this may take a moment...")
 
         # 3. Run Agent Pipeline
@@ -133,11 +133,12 @@ async def process_message(message_data: dict):
             "history": case_data["history"],
             "session_state": case_data["session_state"],
             "intake_attempts": case_data["session_state"].get("intake_attempts", 0),
-            "relevant_statutes": [],
+            "relevant_statutes": case_data["session_state"].get("relevant_statutes", []),
+            "legal_brief": case_data["session_state"].get("legal_brief", {}),
             "clarifying_questions": [],
             "user_facing_response": "",
-            "needs_pdf": False,
-            "confirm_pdf_first": True,
+            "needs_pdf": True,
+            "confirm_pdf_first": False,
             "next_stage": case_data["session_state"].get("stage", "greeting"),
             "intents_queued": case_data["session_state"].get("intents_queued", []),
         }

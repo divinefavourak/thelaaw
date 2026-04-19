@@ -32,18 +32,18 @@ Session stages:
 - greeting     : First message or very vague — run intake
 - intake       : Still gathering facts — run intake, possibly escalation
 - analysis     : Facts complete — run research + reasoning
-- waiting_pdf_confirm : We asked "should I send as PDF?" — check if user said yes/no
 - complete     : Case resolved for now
 
 Rules:
 1. Read `stage` and `questions_asked` carefully. Never ask a question that's in questions_asked.
-2. If `pending_for` is "pdf_confirm":
-   - User said yes/confirmed → agents: ["drafting"], needs_pdf: true, confirm_pdf_first: false
-   - User said no/not now → agents: [], needs_pdf: false — just acknowledge
-3. If message has MULTIPLE intents (e.g. "I was fired and I want a letter"):
+2. If user explicitly asked for a document/letter/draft:
+   - If facts are complete and user's full name is known → agents: ["drafting"], needs_pdf: true, confirm_pdf_first: false
+   - If name is missing → agents: ["intake"] to collect name first
+   - NEVER ask "should I send as PDF?" — always draft and send directly
+3. If `has_legal_brief` is true: skip research and reasoning. Go directly to drafting if user wants a document, or just reply from existing analysis.
+4. If message has MULTIPLE intents (e.g. "I was fired and I want a letter"):
    - This turn: handle the primary need (usually analysis first)
    - Queue the rest in intents_queued for next turn
-4. Only run drafting when: user explicitly asked for a document AND facts are complete AND confirm_pdf_first is false AND user's full name is known (in extracted_facts). If name is missing, run intake instead to ask for it first.
 5. Escalation runs whenever there are safety/criminal/urgent signals — even mid-conversation
 6. Set next_stage to reflect where the conversation should be after this turn
 
@@ -51,8 +51,8 @@ Output JSON only:
 {
   "agents": ["intake"|"escalation"|"research"|"reasoning"|"drafting"],
   "needs_pdf": true|false,
-  "confirm_pdf_first": true|false,
-  "next_stage": "greeting|intake|analysis|waiting_pdf_confirm|complete",
+  "confirm_pdf_first": false,
+  "next_stage": "greeting|intake|analysis|complete",
   "intents_queued": [],
   "reasoning": "one sentence"
 }"""
@@ -101,11 +101,12 @@ async def router_node(state: AgentState) -> dict:
         f"{m['role'].upper()}: {m['content']}" for m in history[-8:]
     ) or "None"
 
+    has_legal_brief = bool(sess.get("legal_brief") or state.get("legal_brief"))
     context = f"""SESSION STATE:
 stage: {sess.get('stage', 'greeting')}
 questions_asked: {json.dumps(sess.get('questions_asked', []))}
-pending_for: {sess.get('pending_for')}
 intents_queued: {json.dumps(sess.get('intents_queued', []))}
+has_legal_brief: {has_legal_brief}
 
 KNOWN FACTS:
 {json.dumps(state.get('extracted_facts', {}), indent=2) or 'None'}
@@ -155,10 +156,14 @@ async def pipeline_node(state: AgentState) -> dict:
     sess = state.get("session_state", {})
     questions_asked = sess.get("questions_asked", [])
 
+    # Restore cached brief/statutes from session (persisted across turns)
+    cached_brief = state.get("legal_brief") or sess.get("legal_brief") or {}
+    cached_statutes = state.get("relevant_statutes") or sess.get("relevant_statutes") or []
+
     updates: dict = {
         "extracted_facts": state.get("extracted_facts", {}),
-        "relevant_statutes": state.get("relevant_statutes", []),
-        "legal_brief": state.get("legal_brief", {}),
+        "relevant_statutes": cached_statutes,
+        "legal_brief": cached_brief,
         "drafted_document": None,
         "user_facing_response": "",
         "clarifying_questions": [],
@@ -192,7 +197,11 @@ async def pipeline_node(state: AgentState) -> dict:
             # Skip remaining agents — wait for user's answer
             agents_to_run = []
 
-    # Pass 2: ESCALATION + RESEARCH in parallel
+    # Pass 2: ESCALATION + RESEARCH in parallel (skip research if we already have statutes cached)
+    if "research" in agents_to_run and cached_statutes:
+        logger.info("Skipping research — using cached statutes")
+        agents_to_run = [a for a in agents_to_run if a != "research"]
+
     parallel = [a for a in agents_to_run if a in ("escalation", "research")]
     if parallel:
         logger.info(f"Running in parallel: {parallel}")
@@ -230,6 +239,11 @@ async def pipeline_node(state: AgentState) -> dict:
             res_result = results[idx] if not isinstance(results[idx], Exception) else {}
             updates["relevant_statutes"] = res_result.get("citations", [])
 
+    # Skip reasoning if we already have a cached brief
+    if "reasoning" in agents_to_run and cached_brief:
+        logger.info("Skipping reasoning — using cached legal brief")
+        agents_to_run = [a for a in agents_to_run if a != "reasoning"]
+
     # Pass 3: REASONING (depends on research output)
     if "reasoning" in agents_to_run:
         logger.info("Running agent: reasoning")
@@ -245,32 +259,23 @@ async def pipeline_node(state: AgentState) -> dict:
     # Pass 4: DRAFTING (depends on reasoning output)
     if "drafting" in agents_to_run:
         logger.info("Running agent: drafting")
-        if state.get("confirm_pdf_first") and not state.get("needs_pdf"):
-            current = updates.get("user_facing_response", "")
-            updates["user_facing_response"] = (
-                (current + "\n\nShould I send this as a PDF?").strip()
-            )
-            updates["drafted_document"] = None
-            state["session_state"]["pending_for"] = "pdf_confirm"
-        else:
-            agent = DraftingAgent()
-            brief = updates.get("legal_brief") or state.get("legal_brief", {})
-            result = await agent.process(brief)
-            updates["drafted_document"] = result if result.get("document_markdown") else None
+        agent = DraftingAgent()
+        brief = updates.get("legal_brief") or state.get("legal_brief") or sess.get("legal_brief", {})
+        result = await agent.process(brief)
+        updates["drafted_document"] = result if result.get("document_markdown") else None
+        if updates["drafted_document"]:
+            updates["user_facing_response"] = "Your formal letter is ready — sending it now."
 
-    # Update session state
+    # Update session state — persist brief + statutes so next turn can skip re-analysis
     updated_session = {
         **sess,
         "stage": state.get("next_stage", sess.get("stage", "intake")),
         "questions_asked": questions_asked,
-        "pending_for": sess.get("pending_for"),
+        "pending_for": None,  # PDF confirm flow removed
         "intents_queued": state.get("intents_queued", []),
+        "legal_brief": updates.get("legal_brief") or cached_brief,
+        "relevant_statutes": updates.get("relevant_statutes") or cached_statutes,
     }
-    # Clear pending_for if we ran drafting or user declined
-    if "drafting" in agents_to_run or (
-        sess.get("pending_for") == "pdf_confirm" and not updates.get("drafted_document")
-    ):
-        updated_session["pending_for"] = None
 
     updates["session_state"] = updated_session
     return updates
