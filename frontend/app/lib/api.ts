@@ -1,6 +1,7 @@
 import { ChatPayload, ChatResponse } from "../types";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Empty string → relative paths → Next.js API routes → backend proxy
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export async function sendChatMessage(payload: ChatPayload): Promise<ChatResponse> {
   const res = await fetch(`${BASE}/api/chat`, {

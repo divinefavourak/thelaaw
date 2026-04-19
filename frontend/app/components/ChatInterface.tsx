@@ -15,7 +15,7 @@ import {
   JurisdictionOption,
   ChatResponse,
 } from "../types";
-import { sendChatMessage, uploadDocument } from "../lib/api";
+import { sendChatMessage, uploadDocument, transcribeAudio } from "../lib/api";
 import { getMockResponse } from "../lib/mockResponses";
 import MessageBubble from "./MessageBubble";
 import Sidebar from "./Sidebar";
@@ -376,7 +376,29 @@ export default function ChatInterface() {
   };
 
   useEffect(() => {
-    if (voice.audioBlob) { processAndSend("[Voice message]", "audio"); voice.clear(); }
+    if (!voice.audioBlob) return;
+    const blob = voice.audioBlob;
+    voice.clear();
+    (async () => {
+      try {
+        // Transcribe first, then send as text so the pipeline sees the words
+        const { transcript } = await transcribeAudio(blob, sessionId);
+        if (transcript) {
+          processAndSend(transcript, "text");
+        } else {
+          // Fallback: send raw audio as base64
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const b64 = (reader.result as string).split(",")[1];
+            processAndSend("[Voice message]", "audio");
+            sendChatMessage({ message: "[Voice message]", session_id: sessionId, message_type: "audio", base64_audio: b64 });
+          };
+          reader.readAsDataURL(blob);
+        }
+      } catch {
+        processAndSend("[Voice message]", "audio");
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.audioBlob]);
 
